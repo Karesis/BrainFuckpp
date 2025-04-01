@@ -84,4 +84,4 @@ BrainFuck++支持使用`#`符号开始的单行注释：
 
 ## 许可
 
-MIT License 
+本项目采用MIT许可证 - 请参阅 [LICENSE](LICENSE) 文件获取详细信息。 
