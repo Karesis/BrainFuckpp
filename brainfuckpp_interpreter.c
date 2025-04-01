@@ -39,6 +39,7 @@ struct Pointer {
     unsigned char (*get_value)(Pointer *self);
     void (*increment_value)(Pointer *self);
     void (*decrement_value)(Pointer *self);
+    int (*move_relative)(Pointer *self, int offset); // 新增：相对移动函数
 };
 
 // --- Function Declarations (Prototypes) ---
@@ -50,6 +51,7 @@ void set_value(Pointer *self, unsigned char value);
 unsigned char get_value(Pointer *self);
 void increment_value(Pointer *self);
 void decrement_value(Pointer *self);
+int move_relative(Pointer *self, int offset); // 新增：相对移动函数
 void init_pointer(Pointer *self);
 Pointer* create_pointer();
 void free_pointer_tape(Pointer *p); // Function to free the linked list
@@ -83,7 +85,7 @@ int run(Interpreter* interp);
 
 // Helper: Check for valid command characters
 int is_command_char(char c) {
-    return (strchr("+-<>.,[]()", c) != NULL);
+    return (strchr("+-<>.,[]()/*", c) != NULL); // 添加 * 到命令字符列表
 }
 
 // -- Pointer Method Implementations --
@@ -141,6 +143,27 @@ void decrement_value(Pointer *self) {
     self->current->data--;
 }
 
+// 新增：相对移动函数实现
+int move_relative(Pointer *self, int offset) {
+    if (!self->current) return -1;
+    
+    // 处理相对位置移动
+    int i;
+    if (offset > 0) {
+        // 正向移动
+        for (i = 0; i < offset; i++) {
+            if (move_right(self) != 0) return -1;
+        }
+    } else if (offset < 0) {
+        // 负向移动
+        for (i = 0; i < -offset; i++) {
+            if (move_left(self) != 0) return -1;
+        }
+    }
+    // offset为0时不移动
+    return 0;
+}
+
 // Initialize a Pointer struct
 void init_pointer(Pointer *self) {
     // Start with a single node for the tape
@@ -153,13 +176,14 @@ void init_pointer(Pointer *self) {
     self->current->prev = NULL;
     self->current->next = NULL;
 
-    // Assign function pointers (updated types for move functions)
+    // Assign function pointers
     self->move_left = move_left;
     self->move_right = move_right;
     self->set_value = set_value;
     self->get_value = get_value;
     self->increment_value = increment_value;
     self->decrement_value = decrement_value;
+    self->move_relative = move_relative; // 新增：设置相对移动函数指针
 }
 
 // Create and initialize a new Pointer (allocates memory for Pointer struct)
@@ -214,6 +238,7 @@ Pointer* create_temp_pointer(Pointer *self) {
     temp_pointer->get_value = self->get_value;
     temp_pointer->increment_value = self->increment_value;
     temp_pointer->decrement_value = self->decrement_value;
+    temp_pointer->move_relative = self->move_relative; // 添加对相对移动函数指针的复制
     return temp_pointer;
 }
 
@@ -504,6 +529,21 @@ int run(Interpreter* interp) {
                 
                 // 释放临时指针结构体
                 free(ptr_to_free);
+                break;
+            }
+            case '*': {
+                // 获取当前单元格的值作为偏移量
+                int offset = (int)current_active_pointer->get_value(current_active_pointer);
+                
+                // 执行相对跳转
+                if (current_active_pointer->move_relative(current_active_pointer, offset) != 0) {
+                    fprintf(stderr, "运行时错误: 相对跳转失败，偏移量: %d, 指令位置: %zu\n", offset, ip);
+                    return -1;
+                }
+                
+                if (debug_enabled) {
+                    fprintf(stderr, " -> 相对跳转%d个单元格\n", offset);
+                }
                 break;
             }
         }
