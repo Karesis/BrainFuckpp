@@ -21,7 +21,7 @@ typedef enum {
 typedef struct Node Node;
 
 struct Node {
-    unsigned char data;
+    int data;  // 从unsigned char改为int，支持负数
     Node *next;
     Node *prev;
 };
@@ -35,8 +35,8 @@ struct Pointer {
     // Function pointers for basic operations
     int (*move_left)(Pointer *self);  // Returns 0 on success, -1 on failure
     int (*move_right)(Pointer *self); // Returns 0 on success, -1 on failure
-    void (*set_value)(Pointer *self, unsigned char value);
-    unsigned char (*get_value)(Pointer *self);
+    void (*set_value)(Pointer *self, int value);  // 改为使用int
+    int (*get_value)(Pointer *self);  // 返回类型改为int
     void (*increment_value)(Pointer *self);
     void (*decrement_value)(Pointer *self);
     int (*move_relative)(Pointer *self, int offset); // 新增：相对移动函数
@@ -47,8 +47,8 @@ struct Pointer {
 // Node/Pointer operations (implementations below)
 int move_left(Pointer *self);  // Changed return type
 int move_right(Pointer *self); // Changed return type
-void set_value(Pointer *self, unsigned char value);
-unsigned char get_value(Pointer *self);
+void set_value(Pointer *self, int value);
+int get_value(Pointer *self);
 void increment_value(Pointer *self);
 void decrement_value(Pointer *self);
 int move_relative(Pointer *self, int offset); // 新增：相对移动函数
@@ -123,12 +123,12 @@ int move_right(Pointer *self) {
     return 0;
 }
 
-void set_value(Pointer *self, unsigned char value) {
+void set_value(Pointer *self, int value) {
     if (!self->current) return;
     self->current->data = value;
 }
 
-unsigned char get_value(Pointer *self) {
+int get_value(Pointer *self) {
     if (!self->current) return 0; // Or handle error
     return self->current->data;
 }
@@ -413,7 +413,7 @@ int run(Interpreter* interp) {
         instruction_count++;
 
         if (debug_enabled) {
-            unsigned char cell_value = current_active_pointer->get_value(current_active_pointer);
+            int cell_value = get_value(current_active_pointer);
             fprintf(stderr, "[指令:%zu 命令:'%c' 堆栈级别:%d 当前值:%d(%c)] ", 
                 ip, command, interp->pointer_stack_top, 
                 cell_value, isprint(cell_value) ? cell_value : '.');
@@ -425,7 +425,7 @@ int run(Interpreter* interp) {
                     fprintf(stderr, "Runtime Error: move_right failed at ip %zu\n", ip);
                     return -1;
                 }
-                if (debug_enabled) fprintf(stderr, " -> NewVal: %d\n", current_active_pointer->get_value(current_active_pointer)); 
+                if (debug_enabled) fprintf(stderr, " -> NewVal: %d\n", get_value(current_active_pointer)); 
                 break;
             }
             case '<': {
@@ -433,37 +433,37 @@ int run(Interpreter* interp) {
                      fprintf(stderr, "Runtime Error: move_left failed at ip %zu\n", ip);
                     return -1;
                 }
-                 if (debug_enabled) fprintf(stderr, " -> NewVal: %d\n", current_active_pointer->get_value(current_active_pointer)); 
+                 if (debug_enabled) fprintf(stderr, " -> NewVal: %d\n", get_value(current_active_pointer)); 
                 break;
             }
             case '+': {
-                unsigned char old_val = current_active_pointer->get_value(current_active_pointer);
+                int old_val = get_value(current_active_pointer);
                 current_active_pointer->increment_value(current_active_pointer);
-                if (debug_enabled) fprintf(stderr, " Val:%d -> %d\n", old_val, current_active_pointer->get_value(current_active_pointer));
+                if (debug_enabled) fprintf(stderr, " Val:%d -> %d\n", old_val, get_value(current_active_pointer));
                 break;
             }
             case '-': {
-                 unsigned char old_val = current_active_pointer->get_value(current_active_pointer);
+                 int old_val = get_value(current_active_pointer);
                  current_active_pointer->decrement_value(current_active_pointer);
-                 if (debug_enabled) fprintf(stderr, " Val:%d -> %d\n", old_val, current_active_pointer->get_value(current_active_pointer));
+                 if (debug_enabled) fprintf(stderr, " Val:%d -> %d\n", old_val, get_value(current_active_pointer));
                  break;
             }
             case '.': {
-                 unsigned char val_to_output = current_active_pointer->get_value(current_active_pointer);
+                 int val_to_output = get_value(current_active_pointer);
                  if (debug_enabled) fprintf(stderr, " Outputting Val:%d ('%c')\n", val_to_output, isprint(val_to_output)?val_to_output:'?');
                  fputc(val_to_output, interp->output);
                  break;
             }
             case ',': {
                 int input_char = fgetc(interp->input);
-                unsigned char old_val = current_active_pointer->get_value(current_active_pointer);
-                unsigned char new_val = (input_char == EOF) ? 0 : (unsigned char)input_char;
+                int old_val = get_value(current_active_pointer);
+                int new_val = (input_char == EOF) ? 0 : input_char;
                 current_active_pointer->set_value(current_active_pointer, new_val);
                 if (debug_enabled) fprintf(stderr, " Read %d. Val:%d -> %d\n", input_char, old_val, new_val);
                 break;
             }
             case '[': {
-                 unsigned char current_val = current_active_pointer->get_value(current_active_pointer);
+                 int current_val = get_value(current_active_pointer);
                  if (debug_enabled) fprintf(stderr, " (Test Val:%d)", current_val);
                 if (current_val == 0) {
                     if (interp->bracket_map[ip] == -1) { fprintf(stderr, " Error: Unmatched '['\n"); return -1;}
@@ -475,7 +475,7 @@ int run(Interpreter* interp) {
                 break;
             }
             case ']': {
-                 unsigned char current_val = current_active_pointer->get_value(current_active_pointer);
+                 int current_val = get_value(current_active_pointer);
                  if (debug_enabled) fprintf(stderr, " (Test Val:%d)", current_val);
                 if (current_val != 0) {
                      if (interp->bracket_map[ip] == -1) { fprintf(stderr, " Error: Unmatched ']'\n"); return -1;}
@@ -503,7 +503,7 @@ int run(Interpreter* interp) {
                 }
                 
                 if (debug_enabled) {
-                    unsigned char cell_value = current_active_pointer->get_value(current_active_pointer);
+                    int cell_value = get_value(current_active_pointer);
                     fprintf(stderr, "-> 推入堆栈. 新堆栈顶: %d. 临时指针指向值: %d\n", 
                         interp->pointer_stack_top, cell_value);
                 }
@@ -522,7 +522,7 @@ int run(Interpreter* interp) {
                 interp->pointer_stack_top--;
                 
                 if (debug_enabled) {
-                    unsigned char cell_value = current_active_pointer->get_value(current_active_pointer);
+                    int cell_value = get_value(current_active_pointer);
                     fprintf(stderr, "-> 弹出堆栈. 新堆栈顶: %d. 活动指针指向值: %d\n", 
                         interp->pointer_stack_top, cell_value);
                 }
@@ -533,7 +533,7 @@ int run(Interpreter* interp) {
             }
             case '*': {
                 // 获取当前单元格的值作为偏移量
-                int offset = (int)current_active_pointer->get_value(current_active_pointer);
+                int offset = current_active_pointer->get_value(current_active_pointer);
                 
                 // 执行相对跳转
                 if (current_active_pointer->move_relative(current_active_pointer, offset) != 0) {
